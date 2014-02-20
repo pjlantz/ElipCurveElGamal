@@ -1,57 +1,4 @@
-
-
-/* 
-   1) Write down an elliptic curve version of ElGamal
-   2) Implement a software library to eprform elliptic curve addition adn doubling over the intergers modulo p.
-   3) Implement ElGamal as in 1)
-*/
-
-
-
-// 1) setup domain parameters q, p , g
-// 2) choose public private key pair x and h=g^x
-
-// 3) In order to encrypt a message m
-// 3a) generate ephemeral key k, set c1 = g^k and c2 = m*h^k 
-// 3b) output ciphertext as c=(c1,c2)
-// 4) Recipient can decrypt our ciphertext by computing c2/c1^x
-
-#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <gmp.h>
-#include <fcntl.h>
-#include <math.h>
-
-
-typedef struct elgam_ctx {
-  int dom_par_q, dom_par_p, dom_par_g;
-  int priv_x, pub_h, eph_k;
-} elgam_ctx;
-
-
-/* Very primitive primality testing. Replace when using bigints */
-int is_prime(int n) {
-  if(n < 2)
-    return 0;
-  int i;
-  for(i = 2; i < n; i++) {
-      if(n % i == 0)
-	return 0;
-  }
-  return 1;
-}
-
-int gcd(int a, int b)
-{
-  int c;
-  while (a != 0) {
-    c = a; 
-    a = b % a;  
-    b = c;
-  }
-  return b;
-}
+#include "elgamal.h"
 
 
 /*
@@ -73,7 +20,8 @@ void get_random_n_bits(mpz_t r, size_t bits)
 /*
   Sets r to a random GMP *prime* integer, smaller than max.
 */
-void get_random_n_prime(mpz_t r, mpz_t max) {
+void get_random_n_prime(mpz_t r, mpz_t max) 
+{
   do {
     get_random_n_bits(r,mpz_sizeinbase(max,2));
     mpz_nextprime(r,r);
@@ -84,73 +32,108 @@ void get_random_n_prime(mpz_t r, mpz_t max) {
 /*
   Sets r to a random GMP integer smaller than max.
 */
-void get_random_n (mpz_t r, mpz_t max) {
+void get_random_n (mpz_t r, mpz_t max) 
+{
   do {
     get_random_n_bits(r,mpz_sizeinbase(max,2));
   } while (mpz_cmp(r,max)>=0);
   
 }
 
+
 /*
  Init structure. Set domain parameters p, q and g
  */
-void init_elgam(elgam_ctx **ectx, size_t bits) {
+void init_elgam(elgam_ctx **ectx, size_t bits) 
+{
   *ectx = (elgam_ctx*) malloc(sizeof(elgam_ctx));
   // 1. find large prime p for domain parameter
   mpz_t p, g, x, h;
-  mpz_init(p);
-  mpz_init(g);
-  mpz_init(x);
-  mpz_init(h);
-  get_random_n_bits(p, bits);
-  mpz_nextprime(p, p);
-  gmp_printf("p = %Zd\n\n", p);
+  mpz_init((*ectx)->dom_par_p);
+  mpz_init((*ectx)->dom_par_g);
+  mpz_init((*ectx)->priv_x);
+  mpz_init((*ectx)->pub_h);
+  mpz_init((*ectx)->eph_k);
+  get_random_n_bits((*ectx)->dom_par_p, bits);
+  mpz_nextprime((*ectx)->dom_par_p, (*ectx)->dom_par_p);
+  gmp_printf("\n\np = %Zd\n", (*ectx)->dom_par_p);
  
-  get_random_n_prime(g, p);
-  gmp_printf("g = %Zd\n\n", g);
+  get_random_n_prime((*ectx)->dom_par_g, (*ectx)->dom_par_p);
+  gmp_printf("g = %Zd\n", (*ectx)->dom_par_g);
 
-  get_random_n(x, p);
-  gmp_printf("x = %Zd\n\n", x);
+  get_random_n((*ectx)->priv_x, (*ectx)->dom_par_p);
+  gmp_printf("x = %Zd\n", (*ectx)->priv_x);
   /* h = g^x (mod n) */
-  mpz_powm_sec(h, g, x, p);
-  gmp_printf("h = %Zd\n\n", h);
- //get_random_n_bits(q, 160);
-  //mpz_nextprime(q, q);
-  //gmp_printf("q= %Zd\n\n", q);  
-  
-
-  //printf("GCD(808,101)=%i\n", gcd(808,101));
-  /*while (1) {
-    srand(time(NULL));
-    p = rand() / 1000000; 
-    if (is_prime(p)) {
-      break;
-    }
-  }
-  while (1) {
-    srand(time(NULL));
-    q = rand() / 6400000;
-    if (is_prime(q)) {
-      if (p % q == q)
-//gcd(p-1, q) == q)
-	break;
-    }
-  }
-  printf("p = %i\n", p);
-  printf("q = %i\n", q);*/
+  mpz_powm_sec((*ectx)->pub_h, (*ectx)->dom_par_g, (*ectx)->priv_x, (*ectx)->dom_par_p);
+  gmp_printf("h = %Zd\n\n", (*ectx)->pub_h);
 }
 
 
-void destroy_elgam(elgam_ctx *ectx) {
-  if (ectx)
+void destroy_elgam(elgam_ctx *ectx) 
+{
+  if (ectx) {
+    mpz_clears(ectx->dom_par_p, ectx->dom_par_g, ectx->dom_par_q, NULL);
+    mpz_clears(ectx->priv_x, ectx->pub_h, ectx->eph_k, NULL);
     free(ectx);
+    ectx = NULL;
+  }
 }
 
 
-int main() {
+void destroy_ciphertxt(ciphertext *ct) 
+{
+  if (ct) {
+    mpz_clears(ct->c1, ct->c2, NULL);
+    free(ct);
+    ct = NULL;
+  }
+}
+
+
+ciphertext* encrypt(mpz_t m, elgam_ctx *ectx) 
+{
+  ectx->eph_k;
+  get_random_n(ectx->eph_k, ectx->dom_par_p);
+  ciphertext *ct = malloc(sizeof(ciphertext));
+  mpz_init(ct->c1);
+  mpz_init(ct->c2);
+  mpz_powm_sec(ct->c1, ectx->dom_par_g, ectx->eph_k, ectx->dom_par_p);
+  mpz_powm_sec(ct->c2, ectx->pub_h, ectx->eph_k, ectx->dom_par_p);
+  mpz_mul(ct->c2, m, ct->c2);
+  mpz_mod(ct->c2, ct->c2, ectx->dom_par_p);
+  gmp_printf("c1 = %Zd\n", ct->c1);
+  gmp_printf("c2 = %Zd\n\n", ct->c2);
+  return ct;
+}
+
+
+void decrypt(mpz_t msg, ciphertext *ct, elgam_ctx *ectx) 
+{
+  mpz_powm_sec(ct->c1, ct->c1, ectx->priv_x, ectx->dom_par_p);
+  mpz_invert(ct->c1, ct->c1, ectx->dom_par_p);
+  mpz_mul(msg, ct->c2, ct->c1);
+  mpz_mod(msg, msg, ectx->dom_par_p);
+}
+
+
+int main() 
+{
+  mpz_t msg, msg_decr;
+  mpz_init(msg);
+  mpz_init(msg_decr);
+  mpz_set_ui(msg, 100);
+  gmp_printf("\nBefore encryption = %Zd\n", msg);
   elgam_ctx *ec;
-  init_elgam(&ec, 8);
-  //printf("Privkey: %i\n", ec->priv_x);
+  ciphertext *ct;
+
+  init_elgam(&ec, 16);
+  ct = encrypt(msg, ec);
+  decrypt(msg_decr, ct, ec);
+
+  gmp_printf("After decryption= %Zd\n\n", msg_decr);
+
+  mpz_clears(msg_decr, NULL);
+  mpz_clears(msg, NULL);
+  destroy_ciphertxt(ct);
   destroy_elgam(ec);
 }
-
