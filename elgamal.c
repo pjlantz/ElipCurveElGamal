@@ -126,9 +126,9 @@ void init_elgam_ec(elgam_ec_ctx **eec_ctx)
     elliptic_curve *ecc = malloc(sizeof(elliptic_curve));
     (*eec_ctx)->ec = ecc;
 
-	mpz_set_str(ecc->a, "340E7BE2A280EB74E2BE61BADA745D97E8F7C300", 16); 
-	mpz_set_str(ecc->b, "1E589A8595423412134FAA2DBDEC95C8D8675E58", 16); 
-	mpz_set_str(ecc->p, "E95E4A5F737059DC60DFC7AD95B3D8139515620F", 16); 
+    mpz_set_str(ecc->a, "340E7BE2A280EB74E2BE61BADA745D97E8F7C300", 16); 
+    mpz_set_str(ecc->b, "1E589A8595423412134FAA2DBDEC95C8D8675E58", 16); 
+    mpz_set_str(ecc->p, "E95E4A5F737059DC60DFC7AD95B3D8139515620F", 16); 
 
 	mpz_init((*eec_ctx)->priv_key);
 	init_point(&(ecc->base));
@@ -136,15 +136,16 @@ void init_elgam_ec(elgam_ec_ctx **eec_ctx)
 
 	mpz_set_str(ecc->base->x, "BED5AF16EA3F6A4F62938C4631EB5AF7BDBCDBC3", 16); 
 	mpz_set_str(ecc->base->y, "1667CB477A1A8EC338F94741669C976316DA6321", 16); 
-	gmp_printf("\nField prime = %Zd\n", ecc->p);
+	gmp_printf("\np = %Zd\n", ecc->p);
 	get_random_n((*eec_ctx)->priv_key, ecc->p);
-	gmp_printf("Private key = %Zd\n", (*eec_ctx)->priv_key);
+	gmp_printf("x = %Zd\n", (*eec_ctx)->priv_key);
 
 	mpz_t tmp;
 	mpz_init_set(tmp, (*eec_ctx)->priv_key);
 	(*eec_ctx)->pub_key = ecc_scalar_mul((*eec_ctx)->ec, tmp, ecc->base);
 	mpz_clears(tmp, NULL);
-	gmp_printf("Public key =  (%Zd,%Zd)\n", ((*eec_ctx)->pub_key)->x, ((*eec_ctx)->pub_key)->y);
+	gmp_printf("Base point P = (%Zd,%Zd)\n", ecc->base->x, ecc->base->y);
+	gmp_printf("Public key xP =  (%Zd,%Zd)\n\n", ((*eec_ctx)->pub_key)->x, ((*eec_ctx)->pub_key)->y);
 }
 
 
@@ -300,10 +301,14 @@ int main()
 	init_point(&p);
 	mpz_init_set_ui(p->x, 666);
 	mpz_init_set_ui(p->y, 123);
+	// c1 = kP (rand k * base point)
+	// c2 = xkP + Pm (public key xP * rand k) + point on curve (secret message)
 	c = encrypt_ec(eec, p);
 	destroy_point(p);
 	
 	init_point(&p);
+	// c1 * x = c1' = xkP
+	// Pm = c1' - c2 = xkP - xkP + Pm
 	p = decrypt_ec(eec, c);
 	destroy_point(p);
 	destroy_cipherec(c);
